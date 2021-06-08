@@ -4,20 +4,31 @@ import os
 from PIL import Image
 from pyfacy import face_clust
 from pyfacy import utils
-import cv2
 import json
+import cv2
 from loadbar import LoadBar
+import time
 
 def detect_faces(image):
+    # we fo a quick haarcascade to speed up to process and use the neural net only if there is a face.
+    faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = faceCascade.detectMultiScale(
+        gray,
+        scaleFactor=1.1,
+        minNeighbors=5,
+        minSize=(30, 30),
+        flags=cv2.CASCADE_SCALE_IMAGE
+    )
+    if len(faces) > 0:
+        # Create a face detector
+        face_detector = dlib.get_frontal_face_detector()
 
-    # Create a face detector
-    face_detector = dlib.get_frontal_face_detector()
-
-    # Run detector and get bounding boxes of the faces on image.
-    detected_faces = face_detector(image, 1)
-    face_frames = [(x.left(), x.top(),
-                    x.right(), x.bottom()) for x in detected_faces]
-
+        # Run detector and get bounding boxes of the faces on image.
+        detected_faces = face_detector(image, 1)
+        face_frames = [(x.left(), x.top(), x.right(), x.bottom()) for x in detected_faces]
+    else:
+        face_frames = []
     return face_frames
 
 def getListOfFiles(dirName):
@@ -73,8 +84,10 @@ def main(path):
 
             # Load image
             image = io.imread(pic)
+
             # check if there is a face
             detected_faces = detect_faces(image)
+
             # Iterate over each face, Crop it and save it as jpg in a created Face Folder
             # create a .json with the link between a face and its origin picture
             for n, face_rect in enumerate(detected_faces):
@@ -85,6 +98,7 @@ def main(path):
                 face = utils.load_image(path) # not super efficient but the lib don't accept the picture already loaded
                 encodings = utils.img_to_encodings(face)
                 faceDB[str(faceIndex)+".jpg"] = [pic, str(encodings)]  # link faces, fingerprint and origin picture
+
         bar.end()
         with open('Faces.json', 'w') as fp:
             json.dump(faceDB, fp)
