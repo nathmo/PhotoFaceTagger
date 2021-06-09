@@ -9,10 +9,14 @@ import cv2
 from loadbar import LoadBar
 import time
 import glob
-from threading import Thread
+import threading
 import subprocess
 import sys
 import shutil
+
+# Global lock
+global_lock = threading.Lock()
+data = {}
 
 def detect_faces(image):
     # we fo a quick haarcascade to speed up to process and use the neural net only if there is a face.
@@ -92,19 +96,15 @@ def FaceExtraction(listOfPictures, threadIndex):
                 face.save(path)  # write the picture to disk
                 face = utils.load_image(path)  # not super efficient but the lib don't accept the picture already loaded
                 encodings = utils.img_to_encodings(face)
-                faceDB[str(faceIndex*100+threadIndex) + ".jpg"] = [pic, str(encodings)]  # link faces, fingerprint and origin picture
+                faceDB[str(faceIndex*100+threadIndex) + ".jpg"] = pic  # link faces and origin picture
         except Exception as e:
             print(str(e) + " with picture :  " + pic)
-    data = {}
-    try:
-        with open('Faces.json') as json_file:
-            data = json.load(json_file)
-    except Exception as e:
-        print(e)
-    with open('Faces.json', 'w') as fp:
-        faceDB.update(data)
-        json.dump(faceDB, fp)
-    print("Thread "+str(threadIndex)+" Done")
+    while global_lock.locked():
+        continue
+    global_lock.acquire()
+    data.update(faceDB)
+    global_lock.release()
+    print("Thread " + str(threadIndex) + " Done")
 
 
 def main(path):
@@ -113,15 +113,16 @@ def main(path):
     corpusSize = len(listOfPictures)
     print(str(corpusSize) + " Pictures loaded from folder and subfolder")
     os.makedirs("Faces", exist_ok=True)
-    if os.path.exists(os.path.join("Faces", "Faces.json")):  # check if the face extraction was completed before
+    if os.path.exists("Faces.json"):  # check if the face extraction was completed before
         skipFaceExtraction = True
     else:
         skipFaceExtraction = False
+
+    skipFaceExtraction = False
+    if not skipFaceExtraction:  # Face extraction from picture corpus
         files = glob.glob('Faces/*')
         for f in files:
             os.remove(f)
-
-    if not skipFaceExtraction:  # Face extraction from picture corpus
         NumberOfCore = 1
         if sys.platform == 'win32':
             NumberOfCore = (int)(os.environ['NUMBER_OF_PROCESSORS'])
@@ -130,13 +131,13 @@ def main(path):
         NumberOfCore = NumberOfCore -1
         print("Starting "+str(NumberOfCore)+" Threads")
         numberOfPicPerCore = int(len(listOfPictures)/NumberOfCore)
-        numberOfPicPerCore = 300
+        numberOfPicPerCore = 250  # 200 150
         print(str(numberOfPicPerCore) + " pics per core")
         output = [listOfPictures[i:i + numberOfPicPerCore] for i in range(0, len(listOfPictures), numberOfPicPerCore)]
         threadlist = []
         for i in range(0, NumberOfCore):
             try:
-                thread = Thread(target=FaceExtraction, args=(output[i], i))  # start as many thread as there are core
+                thread = threading.Thread(target=FaceExtraction, args=(output[i], i))  # start as many thread as there are core
                 threadlist.append(thread)
             except Exception as e:
                 print("Error: unable to start thread "+str(i))  # we resplit the list equally among the remaining thread
@@ -150,6 +151,8 @@ def main(path):
             x.start()
         for x in threadlist:
             x.join()
+        with open('Faces.json', 'w') as fp:
+            json.dump(data, fp)
     shutil.rmtree("FaceCluster", ignore_errors=True)
     os.makedirs("FaceCluster", exist_ok=True)
     print("creating the face model")
