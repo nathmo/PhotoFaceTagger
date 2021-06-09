@@ -3,10 +3,11 @@ more than a decade of unsorted  family photos. Here is a simple tool I built to 
 
 ## capability and caveat
 So far the script parse a given directory and its sub directory and extract all face. it save them as png in a folder called "Faces"
+run the clustering algorithm and store the clustered picture in the folder called FaceCluster.
 
-Later it will be able to cluster thoses faces by similarity. the user can give a name to each face and the script will edit all the exif data to tag the person in them.
+The edditing of the exif data must be implemented. (and the random segfault that arrise when the number of picture to tag get over a few thousand must be fixed)
 
-I will also try to implement multi threading to speed up the process of face extraction
+currently there is no CLI parsing. that will also come.
 
 ## Installing requirements
 ```
