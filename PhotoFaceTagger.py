@@ -99,7 +99,7 @@ def FaceExtraction(listOfPictures, threadIndex):
                 # encodings = utils.img_to_encodings(face) # this fucking line introduce segfauélt when cache is full...
                 faceDB[str(threadIndex*100+faceIndex) + ".jpg"] = pic  # link faces and origin picture
         except Exception as e:
-            print("coulndt open "+pic + " because : "+e)
+            print("coulndt open "+pic + " because : "+str(e))
         gc.collect()  # force garbage collection to free memory
     while global_lock.locked():
         continue
@@ -125,7 +125,7 @@ def main(path):
         files = glob.glob('Faces/*')
         for f in files:
             os.remove(f)
-        numberOfPicPerCore = 400  # dont go over 999 for naming reason
+        numberOfPicPerCore = 800  # dont go over 999 for naming reason
         NumberOfThread = int(len(listOfPictures)/numberOfPicPerCore)
         print("Starting "+str(NumberOfThread)+" Threads")
         print(str(numberOfPicPerCore) + " pics per core")
