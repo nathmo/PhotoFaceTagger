@@ -12,6 +12,7 @@ import glob
 from threading import Thread
 import subprocess
 import sys
+import shutil
 
 def detect_faces(image):
     # we fo a quick haarcascade to speed up to process and use the neural net only if there is a face.
@@ -100,7 +101,6 @@ def FaceExtraction(listOfPictures, threadIndex):
             data = json.load(json_file)
     except Exception as e:
         print(e)
-    print(faceDB)
     with open('Faces.json', 'w') as fp:
         faceDB.update(data)
         json.dump(faceDB, fp)
@@ -130,6 +130,7 @@ def main(path):
         NumberOfCore = NumberOfCore -1
         print("Starting "+str(NumberOfCore)+" Threads")
         numberOfPicPerCore = int(len(listOfPictures)/NumberOfCore)
+        numberOfPicPerCore = 300
         print(str(numberOfPicPerCore) + " pics per core")
         output = [listOfPictures[i:i + numberOfPicPerCore] for i in range(0, len(listOfPictures), numberOfPicPerCore)]
         threadlist = []
@@ -149,7 +150,8 @@ def main(path):
             x.start()
         for x in threadlist:
             x.join()
-
+    shutil.rmtree("FaceCluster", ignore_errors=True)
+    os.makedirs("FaceCluster", exist_ok=True)
     print("creating the face model")
     # Create object for Cluster class with your source path(only contains jpg images)
     mdl = face_clust.Face_Clust_Algorithm("Faces")
@@ -159,6 +161,7 @@ def main(path):
     # Save the group of images to custom location(if the arg is empty store to current location)
     print("Running the clustering model")
     mdl.save_faces("FaceCluster")
+    print("Done")
 
 
 if __name__ == "__main__":
