@@ -8,6 +8,10 @@ import json
 import cv2
 from loadbar import LoadBar
 import time
+import glob
+from threading import Thread
+import subprocess
+import sys
 
 def detect_faces(image):
     # we fo a quick haarcascade to speed up to process and use the neural net only if there is a face.
@@ -60,6 +64,49 @@ def excludeNonPictureFromFileList(fileList):
             print("Not a picture : "+str(file))
     return listOfPictures
 
+def FaceExtraction(listOfPictures, threadIndex):
+    faceIndex = 0
+    picIndex = 0
+    faceDB = {}
+    resolution = 0.02
+    lastStep = resolution
+    for pic in listOfPictures:
+        picIndex = picIndex + 1
+        if picIndex/len(listOfPictures) > lastStep:
+            lastStep = lastStep + resolution
+            print(str(picIndex)+" out of " + str(len(listOfPictures)) + " For Thread " + str(threadIndex))
+        # Load image
+        try:
+            image = io.imread(pic)
+
+            # check if there is a face
+            detected_faces = detect_faces(image)
+
+            # Iterate over each face, Crop it and save it as jpg in a created Face Folder
+            # create a .json with the link between a face and its origin picture
+            for n, face_rect in enumerate(detected_faces):
+                face = Image.fromarray(image).crop(face_rect)  # crop the picture
+                path = os.path.join("Faces", str(faceIndex*100+threadIndex) + ".jpg")  # name its face from 0.jpg to N.jpg in Faces folder
+                faceIndex = faceIndex + 1  # keep a counter to name the face.jpg file
+                face.save(path)  # write the picture to disk
+                face = utils.load_image(path)  # not super efficient but the lib don't accept the picture already loaded
+                encodings = utils.img_to_encodings(face)
+                faceDB[str(faceIndex*100+threadIndex) + ".jpg"] = [pic, str(encodings)]  # link faces, fingerprint and origin picture
+        except Exception as e:
+            print(str(e) + " with picture :  " + pic)
+    data = {}
+    try:
+        with open('Faces.json') as json_file:
+            data = json.load(json_file)
+    except Exception as e:
+        print(e)
+    print(faceDB)
+    with open('Faces.json', 'w') as fp:
+        faceDB.update(data)
+        json.dump(faceDB, fp)
+    print("Thread "+str(threadIndex)+" Done")
+
+
 def main(path):
     ListOfFile = getListOfFiles(path)
     listOfPictures = excludeNonPictureFromFileList(ListOfFile)
@@ -70,38 +117,38 @@ def main(path):
         skipFaceExtraction = True
     else:
         skipFaceExtraction = False
+        files = glob.glob('Faces/*')
+        for f in files:
+            os.remove(f)
 
     if not skipFaceExtraction:  # Face extraction from picture corpus
-        faceIndex = 0
-        picIndex = 1
-        faceDB = {}
-        resolution = 0.01
-        lastStep = resolution
-        bar = LoadBar(max=corpusSize)  # display a not too verbose % of the work done
-        for pic in listOfPictures:
-            bar.update(step=picIndex)
-            picIndex = picIndex + 1
-
-            # Load image
-            image = io.imread(pic)
-
-            # check if there is a face
-            detected_faces = detect_faces(image)
-
-            # Iterate over each face, Crop it and save it as jpg in a created Face Folder
-            # create a .json with the link between a face and its origin picture
-            for n, face_rect in enumerate(detected_faces):
-                face = Image.fromarray(image).crop(face_rect)  # crop the picture
-                path = os.path.join("Faces", str(faceIndex)+".jpg") # name its face from 0.jpg to N.jpg in Faces folder
-                faceIndex = faceIndex + 1  # keep a counter to name the face.jpg file
-                face.save(path)  # write the picture to disk
-                face = utils.load_image(path) # not super efficient but the lib don't accept the picture already loaded
-                encodings = utils.img_to_encodings(face)
-                faceDB[str(faceIndex)+".jpg"] = [pic, str(encodings)]  # link faces, fingerprint and origin picture
-
-        bar.end()
-        with open('Faces.json', 'w') as fp:
-            json.dump(faceDB, fp)
+        NumberOfCore = 1
+        if sys.platform == 'win32':
+            NumberOfCore = (int)(os.environ['NUMBER_OF_PROCESSORS'])
+        else:
+            NumberOfCore = (int)(os.popen('grep -c cores /proc/cpuinfo').read())
+        NumberOfCore = NumberOfCore -1
+        print("Starting "+str(NumberOfCore)+" Threads")
+        numberOfPicPerCore = int(len(listOfPictures)/NumberOfCore)
+        print(str(numberOfPicPerCore) + " pics per core")
+        output = [listOfPictures[i:i + numberOfPicPerCore] for i in range(0, len(listOfPictures), numberOfPicPerCore)]
+        threadlist = []
+        for i in range(0, NumberOfCore):
+            try:
+                thread = Thread(target=FaceExtraction, args=(output[i], i))  # start as many thread as there are core
+                threadlist.append(thread)
+            except Exception as e:
+                print("Error: unable to start thread "+str(i))  # we resplit the list equally among the remaining thread
+                print(e)
+                print("------------------------------------------")
+                for j in range(i,NumberOfCore): # can fuck up if last thread is not available...
+                    listOfPictures = listOfPictures + output[j]
+                    numberOfPicPerCore = int(len(listOfPictures) / (NumberOfCore-i))
+                    output = [listOfPictures[k:k + numberOfPicPerCore] for k in range(0, len(listOfPictures), numberOfPicPerCore)]
+        for x in threadlist:
+            x.start()
+        for x in threadlist:
+            x.join()
 
     print("creating the face model")
     # Create object for Cluster class with your source path(only contains jpg images)
