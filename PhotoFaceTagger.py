@@ -13,6 +13,7 @@ import threading
 import subprocess
 import sys
 import shutil
+import gc
 
 # Global lock
 global_lock = threading.Lock()
@@ -86,19 +87,20 @@ def FaceExtraction(listOfPictures, threadIndex):
 
             # check if there is a face
             detected_faces = detect_faces(image)
-
             # Iterate over each face, Crop it and save it as jpg in a created Face Folder
             # create a .json with the link between a face and its origin picture
             for n, face_rect in enumerate(detected_faces):
                 face = Image.fromarray(image).crop(face_rect)  # crop the picture
-                path = os.path.join("Faces", str(faceIndex*100+threadIndex) + ".jpg")  # name its face from 0.jpg to N.jpg in Faces folder
+
+                path = os.path.join("Faces", str(threadIndex*1000+faceIndex) + ".jpg")  # name its face from 0.jpg to N.jpg in Faces folder
                 faceIndex = faceIndex + 1  # keep a counter to name the face.jpg file
                 face.save(path)  # write the picture to disk
-                face = utils.load_image(path)  # not super efficient but the lib don't accept the picture already loaded
-                encodings = utils.img_to_encodings(face)
-                faceDB[str(faceIndex*100+threadIndex) + ".jpg"] = pic  # link faces and origin picture
+                # face = utils.load_image(path)  # not super efficient but the lib don't accept the picture already loaded
+                # encodings = utils.img_to_encodings(face) # this fucking line introduce segfauélt when cache is full...
+                faceDB[str(threadIndex*100+faceIndex) + ".jpg"] = pic  # link faces and origin picture
         except Exception as e:
-            print(str(e) + " with picture :  " + pic)
+            print("coulndt open "+pic + " because : "+e)
+        gc.collect()  # force garbage collection to free memory
     while global_lock.locked():
         continue
     global_lock.acquire()
@@ -123,19 +125,13 @@ def main(path):
         files = glob.glob('Faces/*')
         for f in files:
             os.remove(f)
-        NumberOfCore = 1
-        if sys.platform == 'win32':
-            NumberOfCore = (int)(os.environ['NUMBER_OF_PROCESSORS'])
-        else:
-            NumberOfCore = (int)(os.popen('grep -c cores /proc/cpuinfo').read())
-        NumberOfCore = NumberOfCore -1
-        print("Starting "+str(NumberOfCore)+" Threads")
-        numberOfPicPerCore = int(len(listOfPictures)/NumberOfCore)
-        numberOfPicPerCore = 250  # 200 150
+        numberOfPicPerCore = 400  # dont go over 999 for naming reason
+        NumberOfThread = int(len(listOfPictures)/numberOfPicPerCore)
+        print("Starting "+str(NumberOfThread)+" Threads")
         print(str(numberOfPicPerCore) + " pics per core")
         output = [listOfPictures[i:i + numberOfPicPerCore] for i in range(0, len(listOfPictures), numberOfPicPerCore)]
         threadlist = []
-        for i in range(0, NumberOfCore):
+        for i in range(0, NumberOfThread):
             try:
                 thread = threading.Thread(target=FaceExtraction, args=(output[i], i))  # start as many thread as there are core
                 threadlist.append(thread)
@@ -143,9 +139,9 @@ def main(path):
                 print("Error: unable to start thread "+str(i))  # we resplit the list equally among the remaining thread
                 print(e)
                 print("------------------------------------------")
-                for j in range(i,NumberOfCore): # can fuck up if last thread is not available...
+                for j in range(i,NumberOfThread): # can fuck up if last thread is not available...
                     listOfPictures = listOfPictures + output[j]
-                    numberOfPicPerCore = int(len(listOfPictures) / (NumberOfCore-i))
+                    numberOfPicPerCore = int(len(listOfPictures) / (NumberOfThread-i))
                     output = [listOfPictures[k:k + numberOfPicPerCore] for k in range(0, len(listOfPictures), numberOfPicPerCore)]
         for x in threadlist:
             x.start()
