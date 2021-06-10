@@ -108,6 +108,17 @@ def FaceExtraction(listOfPictures, threadIndex):
     global_lock.release()
     print("Thread " + str(threadIndex) + " Done")
 
+def faceClustering(inputPath, outputpath):
+    print("creating the face model")
+    # Create object for Cluster class with your source path(only contains jpg images)
+    mdl = face_clust.Face_Clust_Algorithm(inputPath)
+    # Load the faces to the algorithm
+    print("loading the face model")
+    mdl.load_faces()
+    # Save the group of images to custom location(if the arg is empty store to current location)
+    print("Running the clustering model")
+    mdl.save_faces(outputpath)
+    print("Done")
 
 def main(path):
     ListOfFile = getListOfFiles(path)
@@ -151,17 +162,9 @@ def main(path):
             json.dump(data, fp)
     shutil.rmtree("FaceCluster", ignore_errors=True)
     os.makedirs("FaceCluster", exist_ok=True)
-    print("creating the face model")
-    # Create object for Cluster class with your source path(only contains jpg images)
-    mdl = face_clust.Face_Clust_Algorithm("Faces")
-    # Load the faces to the algorithm
-    print("loading the face model")
-    mdl.load_faces()
-    # Save the group of images to custom location(if the arg is empty store to current location)
-    print("Running the clustering model")
-    mdl.save_faces("FaceCluster")
-    print("Done")
+    faceClustering("Faces","FaceCluster")
 
 
 if __name__ == "__main__":
     main("/home/nathann/SortedPictures")
+    # faceClustering("FaceCluster/face_1", "FaceClusterFace_1")
