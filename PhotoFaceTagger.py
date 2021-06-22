@@ -1,17 +1,25 @@
+"""
+
+Sources :
+https://www.pyimagesearch.com/2018/07/09/face-clustering-with-python/
+https://github.com/kunalagarwal101/Face-Clustering
+https://github.com/xiaoxiong74/face-cluster-by-infomap
+https://medium.com/analytics-vidhya/face-recognition-using-k-means-clustering-127c462e02f2
+https://realpython.com/command-line-interfaces-python-argparse/
+https://manivannan-ai.medium.com/pyfacy-face-recognition-and-face-clustering-8d467cba36de
+
+"""
 import dlib
 from skimage import io
 import os
 from PIL import Image
 from pyfacy import face_clust
+from pyfacy import face_recog
 from pyfacy import utils
 import json
 import cv2
-from loadbar import LoadBar
-import time
 import glob
 import threading
-import subprocess
-import sys
 import shutil
 import gc
 
@@ -120,6 +128,17 @@ def faceClustering(inputPath, outputpath):
     mdl.save_faces(outputpath)
     print("Done")
 
+def faceLearning(inputPath, outputpath):
+    mdl = face_recog.Face_Recog_Algorithm()
+    # Train the Model
+    # Implemented only four algorithms above mentioned and put the shortform
+    mdl.train(inputPath, alg='LOG_REG_MUL')
+    # Save the Model
+    mdl.save_model()
+    # Predicting Image
+    img = utils.load_image('<image src>')
+    mdl.predict(img)
+
 def main(path):
     ListOfFile = getListOfFiles(path)
     listOfPictures = excludeNonPictureFromFileList(ListOfFile)
@@ -132,6 +151,7 @@ def main(path):
         skipFaceExtraction = False
 
     skipFaceExtraction = False
+    # start thread to extract faces from the pictures and store it in the Face folder
     if not skipFaceExtraction:  # Face extraction from picture corpus
         files = glob.glob('Faces/*')
         for f in files:
@@ -160,11 +180,12 @@ def main(path):
             x.join()
         with open('Faces.json', 'w') as fp:
             json.dump(data, fp)
+    # empty the folder
     shutil.rmtree("FaceCluster", ignore_errors=True)
     os.makedirs("FaceCluster", exist_ok=True)
+    # cluster the faces
     faceClustering("Faces","FaceCluster")
 
 
 if __name__ == "__main__":
     main("/home/nathann/SortedPictures")
-    # faceClustering("FaceCluster/face_1", "FaceClusterFace_1")
