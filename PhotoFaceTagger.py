@@ -7,6 +7,7 @@ https://github.com/xiaoxiong74/face-cluster-by-infomap
 https://medium.com/analytics-vidhya/face-recognition-using-k-means-clustering-127c462e02f2
 https://realpython.com/command-line-interfaces-python-argparse/
 https://manivannan-ai.medium.com/pyfacy-face-recognition-and-face-clustering-8d467cba36de
+https://medium.com/analytics-vidhya/ai-saved-my-family-photos-521ce6fa5877
 
 """
 import dlib
